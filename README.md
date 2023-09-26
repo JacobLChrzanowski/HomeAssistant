@@ -5,10 +5,11 @@ My HomeAssistant Config
 I needed a way to have stateful lights that could be controlled with IKEA Tradri remotes. I implimented that functionality in HomeAssistant in PyScript <https://hacs-pyscript.readthedocs.io/en/latest/>. It leverages zigbee-connected remotes. There is some state kept in individual pyscript session(s?) and also in HomeAssistant 'helper' variables. Why is explained later.
 
 ## 2. Why is it a mess?
-PyScript has a lot of functionality missing and namely,
+PyScript has some functionality missing and namely,
 a) cannot import modules local to your directory, your script must be entirely contianed in one file
-b) can use yaml as configs but otherwise cannot open files for reading, there is no FileIO for you to leverage. And I don't want to wade through yaml's just yet.
+b) can use yaml as configs I don't want to wade through yaml's just yet.
 b.2) No I'm not going to keep configs as homeassistant 'helper' strings. That's convoluted.
+b.3) I need to read the PyScript docs more.
 c) it's a WIP
 
 ## 3. What's the structure to the repo?
