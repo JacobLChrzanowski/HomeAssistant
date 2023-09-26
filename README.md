@@ -7,7 +7,7 @@ I needed a way to have stateful lights that could be controlled with IKEA Tradri
 ## 2. Why is it a mess?
 PyScript has a lot of functionality missing and namely,
 a) cannot import modules local to your directory, your script must be entirely contianed in one file
-b) cannot open files for reading, there is no FileIO.
+b) can use yaml as configs but otherwise cannot open files for reading, there is no FileIO for you to leverage. And I don't want to wade through yaml's just yet.
 b.2) No I'm not going to keep configs as homeassistant 'helper' strings. That's convoluted.
 c) it's a WIP
 
