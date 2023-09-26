@@ -46,4 +46,7 @@ Restore last known value on start: yes
 This is as it is called, a catch-all automation. It catches all zha_event(s) and ships them to a pyscript service. You should not have a remote call this automation, else you'll have pyscript processing each input from that remote twice. You probably don't want that.
 This script is designed to have all business logic in the pyscript file. The big reason for shipping all events is so that you don't need to have one automation per remote (that would be silly), and to avoid verbose automation files where each possible action from your remote has its own trigger. I tried that and ended up missing the hold-left and hold-right actions on the Tradfri E1810.
 
-
+## 4. Why all the lists? Aren't dictionaries faster?
+Ah yeah. I don't think so? At least not for the small lists dealt with in this script.
+Dictionaries may be O(1) and lists O(n) to retrieve items, but it can take much longer to compute a hash than to loop through a list until an item is found. I understand Python is not a speed king, nor is it exactly slow, but I want to keep the overhead as low as I can for the embedded systems HomeAssistant runs on. Plus, one button press dereferences quite a bit of data due to how extensible I tried to make this, so I would rather loop through 5 lists, than compute 5 hashes. I haven't run microbenchmarks for this but I have a feeling that dictionaries would only become faster than lists once the lists grew to be more than a few hundred, perhaps a thousand entries long.
+And that's just not going to happen here.
