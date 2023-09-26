@@ -30,7 +30,7 @@ I used to have it where every remote did call its own purpose-built automation, 
 To let the pyscript event handler be aware of all button presses by any zigbee
 
 ## 2. Why do you keep some state in pyscript, and other state in HomeAssistant 'helpers'?
-Pyscript stores immediate state, for instant, if I need to keep track of a remote button press, and I need to know whether it was pressed while an event handler is running, I don't really care about losing state between script reloads. In real usage and not when developing, I don't think pyscript will reload that very often. And is very unliekly to while I am pressing a button. It's a non-concern edge case.
+Pyscript stores immediate state, for instance, if I need to keep track of a remote button press, and I need to know whether it was pressed while an event handler is running, I don't really care about losing state between script reloads. In real usage and not when developing, I don't think pyscript will reload that very often. And is very unliekly to while I am pressing a button. It's a non-concern edge case.
 
 I store long-term state data in HomeAssistant helpers. For instance if I need to remember what scene is applied to an area a remote controls, that will be stored  as some counter value.
 Eventually I need to move that to a string value so I don't have a dozen helpers for a dozen remotes, just one helper for one house.
