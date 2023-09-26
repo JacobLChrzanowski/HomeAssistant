@@ -1,0 +1,16 @@
+- id: '1693537255868'
+  alias: Circle Remote - All Service Call
+  description: ''
+  trigger:
+  - platform: event
+    event_type: zha_event
+  condition: []
+  action:
+  - service: pyscript.resolve_button_press
+    data:
+      trigger_event: '{{trigger}}'
+      id: '{{ trigger.id }}'
+      device_id: '{{trigger.event.data.device_id}}'
+      command: '{{ trigger.event.data.command }}'
+      args: '{{ trigger.event.data.args }}'
+  mode: single
