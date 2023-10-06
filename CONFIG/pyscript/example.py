@@ -4,8 +4,11 @@
 #     sys.path.append("/config/pyscript_modules")
 # import inspect
 import json
+import asyncio
+import time
 from enum import Enum, Flag, auto
 from collections import deque
+from queue import Queue, Empty
 from homeassistant.const import EVENT_CALL_SERVICE
 from homeassistant.helpers.device_registry import DeviceRegistry
 from homeassistant.helpers import entity_registry as er
@@ -14,8 +17,24 @@ Action = Flag('Action', ['Press', 'Hold', 'TerminateHold', 'Indeterminate', 'Up'
 Act_InLR = Action.Indeterminate | Action.Left | Action.Right
 Act_HoldL = Action.Hold | Action.Left
 Act_HoldR = Action.Hold | Action.Right
-BOOLEAN_MAP = {'on': True, 'off': False, True: 'on', False: 'off'}
+HELPER_BOOLEAN_MAP = {'on': True, 'off': False, True: 'on', False: 'off'}
 TEMP = 1
+ACTION_QUEUE = Queue(maxsize=10)
+
+def turn_on_light(entity_id: str, brightness=None, get_attribute='brightness'):
+    light.turn_on(entity_id=entity_id)
+    count = 10
+    while(count > 0):
+        try:
+            state = state.get(f'{entity_id}.{get_attribute}')
+            break
+        except AttributeError:
+            asyncio.sleep(0.2)
+            pass
+        count -= 1
+    # time.sleep(10)
+    # log.info(f"here: {ACTION_QUEUE.get()}")
+    return state
 
 class Action_Map():
     """
@@ -57,31 +76,43 @@ class Action_Map():
             if i[0] == command and i[1] == args:
                 return i[2]
 
-
 class Device_History():
     """ Stores history of actions received from a device """
     # history is list of tuples, where [0] is the device's locale_name, and [1] is a deque with some max length
-    history = []
-    def get_device_history(self, locale_name: str, maxlen: int = 5) -> list[str, deque]:
+    def __init__(self):
+        self.history = []
+    def _get_device_history(self, locale_name: str, maxlen: int = None) -> list[str, deque[Action]]:
         """ returns action history for a device, given a locale_name """
         len_history = len(self.history)
         for i in range(len_history):
-            if i[0] == locale_name:
-                return self.history[i]
+            if self.history[i][0] == locale_name:
+                return self.history[i][1]
         new_deque = deque([], maxlen=maxlen)
-        history.append((locale_name, new_deque))
-        return history[len_history][1]
+        self.history.append((locale_name, new_deque,))
+        return self.history[len_history][1]
 
-    def add_action(self, config: Config_Field, action: Action, maxlen: int = None) -> None:
+    def add_action(self, config: Config_Field, action: Action, maxlen: int = 5) -> None:
         """ adds an action to the history of a devices based on config.locale_name """
-        device_history = self.get_device_history(config.locale_name, maxlen=maxlen)
+        device_history = self._get_device_history(config.locale_name, maxlen=maxlen)
         device_history.append(action)
     
     def clear_history(self, config: Config_Field) -> None:
         """ clears history for a devices based on config.locale_name """
-        device_history = self.get_device_history(config.locale_name)
-        device_history
-
+        device_history = self._get_device_history(config.locale_name)
+        device_history.clear()
+    
+    def get_history(self, config: Config_Field) -> list[Action]:
+        """ returns action history as a list, based on config.locale_name """
+        device_history = self._get_device_history(config.locale_name)
+        return list(device_history)
+    
+    def get_last_action(self, config: Config_Field) -> Action:
+        """ returns last Action based on config.locale_name """
+        device_history = self._get_device_history(config.locale_name)
+        if len(device_history) == 0:
+            return Action(0)
+        else:
+            return device_history[-1]
 
 class Config_Field():
     """
@@ -105,7 +136,11 @@ class Config_Field():
         ('livingroom_r1',
         [1,2,3],
         [4,5,6],
-        [64,128,255])
+        [64,128,255]),
+        ('livingroom_r2',
+        ('light.signify_netherlands_b_v_lca005_huelight_2', 'light.signify_netherlands_b_v_lca005_huelight'),
+        '
+        )
     ]
     locale_scenes = [('bedroom_r1',{
             'loop': [
@@ -127,6 +162,20 @@ class Config_Field():
         self.get_locale_name_from_device_id()
         self.brightness_map = None
         self.scene_map = None
+
+    def get_state(self, key, return_type='xy'):
+        try:
+            state = state.get(f"string.{self.device_id}_{key}")
+        except NameError:
+            state.set(key)
+            return -1, -1
+        return state
+
+    def set_state(self, key):
+        state.set(f"string.{self.device_id}_{key}")
+
+    def delete_state(self, key):
+        state.delete(f"string.{self.device_id}_{key}")
 
     def get_locale_name_from_device_id(self) -> None:
         """ resolves locale_name from stored device_id """
@@ -164,22 +213,29 @@ class Config_Field():
 ACTION_MAP = Action_Map()
 DEVICE_HISTORY = Device_History()
 
+
+
 @service
 def resolve_button_press(action=None, id=None, trigger_event=None, idx=None, alias=None, platform=None, description=None, device_id=None, command=None, args=None):
+    """hello_world example using pyscript."""
     if type(args) != str:
         # Sometimes button press comes through as 'homeassistant.helpers.template.gen_result_wrapper.<locals>.Wrapper'
         # E1810 Down: [<StepMode.Down: 1>, 43, 5, <bitmap8: 0>, <bitmap8: 0>] 
         args = str(args)
-    """hello_world example using pyscript."""
     log.info("\n")
     config = Config_Field(trigger_event, device_id)
-    log.info(f"{command} {args} {device_id}")
     action = ACTION_MAP.get_action_from_command_args_by_model(command, args, config.remote_model)
-    log.info(action)
-    # log.info(action)
-    # log.info(id)
-    # log.info(trigger_event)
 
+    log.info(f"{command} {args} {device_id}, {config.locale_name}")
+    log.info(f"Last Action: {DEVICE_HISTORY.get_last_action(config)}")
+    DEVICE_HISTORY.add_action(config, action)
+    log.info(f"This Action: {action}")
+
+    # config.set_state('pos')
+    # log.info(config.get_state('pos'))
+    # state.delete('string.57e51d8c188866311bec9fa8f217c28c_pos')
+    return
+    
     #####
     #####
     if config.locale_name == 'livingroom_r2':
@@ -194,8 +250,32 @@ def resolve_button_press(action=None, id=None, trigger_event=None, idx=None, ali
         
         entity_id = 'light.signify_netherlands_b_v_lca005_huelight_2'
         entity_id = 'light.lamp'
+        # log.info(f"brightness: {state.get(f'{entity_id}.brightness')}")
+        # # log.info(state.names())
+        # a = state.setattr(f"{entity_id}.brightness", value=1)
+        # log.info(f"a: {a}")
+        if state.get(entity_id) == 'on':
+            log.info(f"brightness: {state.get(f'{entity_id}.brightness')}")
+            light.turn_off(entity_id=entity_id)
+        else:
+            # brightness = turn_on_light(entity_id)
+            ACTION_QUEUE.put('hello')
+            task.executor(turn_on_light(entity_id))
+            log.info(f"brightness: {brightness}")
+            # light.turn_on(entity_id=entity_id)
+            # asyncio.sleep(0.1)
+            # log.info(f"brightness: {state.get(f'{entity_id}.brightness')}")
+
+
+        # log.info(light.turn_on(entity_id=entity_id, brightness=300))
+        
+        if command in ['move_with_on_off', 'stop_with_on_off']:
+            ACTION_QUEUE.put(command)
+
+        
         # entity_reg = er.async_get_registry(hass)
         # entry = entity_reg.async_get(entity_id)
+        # log.info(entry)
 
         # entity_light_state = state.get(f"{entity_id}")
         # log.info(f"light state: {entity_light_state}")
@@ -256,17 +336,17 @@ def resolve_button_press(action=None, id=None, trigger_event=None, idx=None, ali
         return counter_state
     def get_boolean_state():
         boolean_state = state.get(boolean_name)
-        if boolean_state not in BOOLEAN_MAP:
+        if boolean_state not in HELPER_BOOLEAN_MAP:
             return False
-        return BOOLEAN_MAP[boolean_state]
+        return HELPER_BOOLEAN_MAP[boolean_state]
     def toggle_boolean():
         boolean_state = get_boolean_state()
         new_boolean_state = not boolean_state
-        state.set(boolean_name, BOOLEAN_MAP[new_boolean_state])
+        state.set(boolean_name, HELPER_BOOLEAN_MAP[new_boolean_state])
         return new_boolean_state
     def set_boolean(boolean_state):
         assert type(boolean_state) == bool
-        state.set(boolean_name, BOOLEAN_MAP[boolean_state])
+        state.set(boolean_name, HELPER_BOOLEAN_MAP[boolean_state])
     def get_scene_by_index(counter_val):
         return config.get_scene_map()['loop'][counter_val]
     def get_scene_by_counter_name():
@@ -340,8 +420,52 @@ def resolve_button_press(action=None, id=None, trigger_event=None, idx=None, ali
 
 
 
+# @task_unique('background_pyscript', kill_me=False)
+# @time_trigger('startup')
+# def async_foo():
+#     """
+#     'kill_me=False' kills old tasks, and allows new tasks to run
+#     """
+#     entity_id = 'light.lamp'
+#     count = 0
+#     action_count = 0
+#     last_action = ''
+#     while(True):
+#         if count % 10 == 0:
+#             log.info(f'async task on {count}')
+#         count += 1
+        
+#         try:
+#             action = ACTION_QUEUE.get(block=False, timeout=5)
+#         except Empty:
+#             # asyncio.sleep(1)
+#             # continue
+#             log.info('exception')
+#             action = last_action
+        
+#         if action != '':
+#             log.info(f"action: {action}")
+#         if action == 'move_with_on_off':
+#             asyncio.sleep(0.5)
+#             light.turn_on(entity_id=entity_id, brightness=action_count)
+#             action_count += 15
+#             if state.get(entity_id) == 'on':
+#                 log.info(f"brightness: {state.get('light.lamp.brightness')}")
+#             last_action = action
+#             log.info('here')
+#             continue
+#         if action == 'stop_with_on_off':
+#             action = ''
+#             action_count = 0
+#             last_action = action
+#             log.info("end of move_on_with_off")
+#         asyncio.sleep(1)
+#         if count > 100:
+#             break
 
 @event_trigger(EVENT_CALL_SERVICE)
 def monitor_service_calls(**kwargs):
     # log.info(f"got EVENT_CALL_SERVICE with kwargs={kwargs}")
+    # if kwargs
     pass
+
