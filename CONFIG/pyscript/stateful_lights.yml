@@ -1,0 +1,5 @@
+test:
+  hi
+
+- !!python/name:custom_components.pyscript.eval.Action ''
+- Up

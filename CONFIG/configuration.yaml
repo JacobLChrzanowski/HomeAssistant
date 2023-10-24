@@ -1,0 +1,4 @@
+
+pyscript:
+  allow_all_imports: True
+  stateful_lights_config: 'pyscript/stateful_lights.yml'
